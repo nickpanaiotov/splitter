@@ -1,5 +1,10 @@
 var Splitter = artifacts.require("./Splitter.sol");
 
+// Comment: You can use async/await for better readability
+// Comment: You can add tests for events
+// Comment: Add test for negative cases, you should test the "requires" in the functions - you could check this test https://github.com/LockChainLtd/DApp/blob/master/test/Marketplace.js#L106
+// Comment: Add tests for kill switch
+
 contract("Splitter", function (accounts) {
 
     var alice = accounts[0];

@@ -1,49 +1,64 @@
-pragma solidity ^0.4.19;
+pragma solidity 0.4.21;
 
 contract Splitter {
 
-    uint private balance;
-    mapping(address => uint) private particepents;
+    uint private contractBalance;
+    mapping(address => uint) private balanceOf;
 
     address private bob;
     address private carol;
+    address private owner;
 
+    event DepositEvent(address from, uint value);
+	event WithdrawEvent(address from, uint value);
 
     function Splitter(address _bob, address _carol) public {
+        require(_bob != address(0));
+        require(_carol != address(0));
+
+        owner = msg.sender;
         bob = _bob;
         carol = _carol;
     }
 
+    function getOwner() public view returns (address) {
+        return owner;
+    }
+
     function getBalance() public view returns (uint) {
-        return balance;
+        return contractBalance;
     }
 
-    function isParticipating(address particepent) public view returns (bool) {
-        return (bob == particepent || carol == particepent);
-    }
-
-    function split() public payable returns (bool success) {
+    function () public payable {
         require(msg.value > 0);
         require(msg.sender.balance > msg.value);
 
         uint half = msg.value / 2;
-        particepents[bob] += half;
-        particepents[carol] += half;
 
-        balance += (half + half);
+        balanceOf[bob] += half;
+        balanceOf[carol] += half;
+        balanceOf[owner] += msg.value - (half + half);
 
-        return true;
+        contractBalance = msg.value;
+
+        emit DepositEvent(msg.sender, msg.value);
     }
 
     function withdraw() public returns (bool) {
-        require(particepents[msg.sender] != 0);
+        require(balanceOf[msg.sender] != 0);
 
-        uint amount = particepents[msg.sender];
-        particepents[msg.sender] = 0;
-        balance -= amount;
+        uint amount = balanceOf[msg.sender];
+        balanceOf[msg.sender] = 0;
+        contractBalance -= amount;
 
         msg.sender.transfer(amount);
 
+        emit WithdrawEvent(msg.sender, amount);
         return true;
+    }
+
+    function killMe() public {
+        require(msg.sender == owner);
+        selfdestruct(msg.sender);
     }
 }

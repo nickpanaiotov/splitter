@@ -1,76 +1,96 @@
-var Splitter = artifacts.require("./Splitter.sol");
+let Splitter = artifacts.require("./Splitter.sol");
 
 contract("Splitter", function (accounts) {
 
-    var alice = accounts[0];
-    var bob = accounts[1];
-    var carol = accounts[2];
+    let alice = accounts[0];
+    let bob = accounts[1];
+    let carol = accounts[2];
 
-    var contract;
+    let contract;
 
-    beforeEach(function () {
-        return Splitter.new(bob, carol, {from: alice})
-            .then(function (instance) {
-                contract = instance;
-            });
+    beforeEach(async () => {
+        contract = await Splitter.new(bob, carol, {from: alice});
     });
 
-    it('alice should not participating in the scheme', function () {
-        return contract.isParticipating(alice, {from: alice})
-            .then(function (isParticipating) {
-                assert.strictEqual(isParticipating, false, "Alice is participating in the scheme!");
-            });
+    it("alice should be the owner", async () => {
+        assert.equal(await contract.getOwner(), alice)
     });
 
-    it('bob should participating in the scheme', function () {
-        return contract.isParticipating(bob, {from: bob})
-            .then(function (isParticipating) {
-                assert.strictEqual(isParticipating, true, "Bob is not participating in the scheme!");
-            });
+    it("owner should be able to kill the contract", async () => {
+        await contract.killMe({from: alice});
+        assert.strictEqual(await contract.getOwner(), "0x");
     });
 
-    it('carol should participating in the scheme', function () {
-        return contract.isParticipating(carol, {from: carol})
-            .then(function (isParticipating) {
-                assert.strictEqual(isParticipating, true, "Carol is not participating in the scheme!");
-            });
+    it('split should update balance of the contract', async () => {
+        let weiForSplitting = 10;
+        await contract.sendTransaction({from: alice, value: weiForSplitting});
+        assert.equal((await contract.getBalance()).toString(10), weiForSplitting, "Balance in the contract is not correct")
     });
 
-    it('split should update balance of the contract', function () {
-        var weiForSplitting = 10;
+    it('withdraw should update balance of the contract', async () => {
+        let weiForSplitting = 10;
+        let expectedResult = "5";
 
-        return contract.split({from: alice, value: weiForSplitting})
-            .then(function (txn) {
-                return contract.getBalance();
-            })
-            .then(function (balance) {
-                assert.equal(balance.toString(10), weiForSplitting, "Balance in the contract is not correct");
-            });
+        await contract.sendTransaction({from: alice, value: weiForSplitting});
+        await contract.withdraw({from: bob});
+        assert.equal((await contract.getBalance()).toString(10), expectedResult, "Balance after withdraw is not correct");
     });
 
-    it('withdraw should update balance of the contract', function () {
-        var weiForSplitting = 10;
-        var expectedResult = "5";
-        return contract.split({from: alice, value: weiForSplitting})
-            .then(function (txn) {
-                return contract.withdraw({from: bob})
-            }).then(function (txn) {
-                return contract.getBalance();
-            }).then(function (balance) {
-                assert.equal(balance.toString(10), expectedResult, "Balance after withdraw is not correct");
-            });
+    it("event should be emitted when depositing", async function () {
+        let weiForSplitting = 66;
+        let expectedEvent = 'DepositEvent';
+
+        let result = await contract.sendTransaction({from: alice, value: weiForSplitting});
+
+        assert.lengthOf(result.logs, 1, "There should be 1 event emitted from setRate!");
+        assert.strictEqual(result.logs[0].event, expectedEvent, `The event emitted was ${result.logs[0].event} instead of ${expectedEvent}`);
     });
 
-    it('split is burning 1 wei when is called with odd value', function () {
-        var weiForSplitting = 11;
-        var expectedResult = "5";
-        return contract.split({from: alice, value: weiForSplitting})
-            .then(function (txn) {
-                return contract.withdraw({from: carol})
-            }).then(function (txn) {
-                return contract.getBalance();
-            }).then(function (balance) {
-                assert.equal(balance.toString(10), expectedResult, "Balance after withdraw is not correct");
-            });
+    it("event should be emitted when withdrawing", async function () {
+        let weiForSplitting = 66;
+        let expectedEvent = 'WithdrawEvent';
+
+        await contract.sendTransaction({from: alice, value: weiForSplitting});
+        let result = await contract.withdraw({from: bob});
+
+        assert.lengthOf(result.logs, 1, "There should be 1 event emitted from setRate!");
+        assert.strictEqual(result.logs[0].event, expectedEvent, `The event emitted was ${result.logs[0].event} instead of ${expectedEvent}`);
+    });
+
+    it("contract shouldn't be able to be deployed without participants", async () => {
+        let expectedMessage = "VM Exception while processing transaction: invalid opcode";
+        try {
+            contract = await Splitter.new(null, null, {from: alice});
+            assert.fail("Exceptions wasn't thrown.");
+        } catch (error) {
+            assert.strictEqual(error.message, expectedMessage ,
+                "Unexpected message!");
+        }
+    });
+
+    it("contract shouldn't be able to be deployed with invalid addresses", async () => {
+        let expectedMessage = "VM Exception while processing transaction: invalid opcode";
+        try {
+            contract = await Splitter.new("", "", {from: alice});
+            assert.fail("Exceptions wasn't thrown.");
+        } catch (error) {
+            assert.strictEqual(error.message, expectedMessage ,
+                "Unexpected message!");
+        }
+    });
+
+    it("bob shouldn't be the owner", async () => {
+        assert.notEqual(await contract.getOwner(), bob)
+    });
+
+    it("bob shouldn't be able to kill the contract", async () => {
+        let expectedMessage = "VM Exception while processing transaction: invalid opcode";
+        try {
+            await contract.killMe({from: bob});
+            assert.fail("Exceptions wasn't thrown.");
+        } catch (error) {
+            assert.strictEqual(error.message, expectedMessage ,
+                "Unexpected message!");
+        }
     });
 });
